@@ -4,7 +4,6 @@ import {
     isSupabaseConfigured,
     successResponse,
     errorResponse,
-    requireAuth,
     requireAuthWithDevBypass,
     isAuthError,
 } from "@/lib/supabase/server";
