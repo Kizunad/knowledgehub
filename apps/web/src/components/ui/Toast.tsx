@@ -69,7 +69,13 @@ interface ToastProviderProps {
     /** Default duration in milliseconds */
     defaultDuration?: number;
     /** Position of toasts */
-    position?: "top-right" | "top-left" | "bottom-right" | "bottom-left" | "top-center" | "bottom-center";
+    position?:
+        | "top-right"
+        | "top-left"
+        | "bottom-right"
+        | "bottom-left"
+        | "top-center"
+        | "bottom-center";
 }
 
 export function ToastProvider({
@@ -101,7 +107,7 @@ export function ToastProvider({
 
             return id;
         },
-        [defaultDuration, maxToasts]
+        [defaultDuration, maxToasts],
     );
 
     // Remove a toast
@@ -118,25 +124,25 @@ export function ToastProvider({
     const success = useCallback(
         (title: string, message?: string) =>
             addToast({ type: "success", title, message }),
-        [addToast]
+        [addToast],
     );
 
     const error = useCallback(
         (title: string, message?: string) =>
             addToast({ type: "error", title, message, duration: 8000 }),
-        [addToast]
+        [addToast],
     );
 
     const warning = useCallback(
         (title: string, message?: string) =>
             addToast({ type: "warning", title, message }),
-        [addToast]
+        [addToast],
     );
 
     const info = useCallback(
         (title: string, message?: string) =>
             addToast({ type: "info", title, message }),
-        [addToast]
+        [addToast],
     );
 
     // Position classes
@@ -168,7 +174,7 @@ export function ToastProvider({
             <div
                 className={cn(
                     "fixed z-[100] flex flex-col gap-2 pointer-events-none",
-                    positionClasses[position]
+                    positionClasses[position],
                 )}
                 aria-live="polite"
                 aria-label="通知"
@@ -206,6 +212,7 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
 
             return () => clearTimeout(timer);
         }
+        return undefined;
     }, [toast.duration]);
 
     // Handle animation end
@@ -214,6 +221,7 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
             const timer = setTimeout(onClose, 200);
             return () => clearTimeout(timer);
         }
+        return undefined;
     }, [isLeaving, onClose]);
 
     // Icon and colors based on type
@@ -262,18 +270,13 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
                 borderClass,
                 isLeaving
                     ? "animate-[slideOut_0.2s_ease-in_forwards]"
-                    : "animate-[slideIn_0.2s_ease-out]"
+                    : "animate-[slideIn_0.2s_ease-out]",
             )}
             role="alert"
         >
             <div className="flex items-start gap-3 p-4">
                 {/* Icon */}
-                <div
-                    className={cn(
-                        "flex-shrink-0 p-1 rounded-full",
-                        bgClass
-                    )}
-                >
+                <div className={cn("flex-shrink-0 p-1 rounded-full", bgClass)}>
                     <Icon className={cn("h-4 w-4", iconClass)} />
                 </div>
 
@@ -319,7 +322,7 @@ function ToastItem({ toast, onClose }: ToastItemProps) {
                             toast.type === "success" && "bg-green-500",
                             toast.type === "error" && "bg-destructive",
                             toast.type === "warning" && "bg-yellow-500",
-                            toast.type === "info" && "bg-blue-500"
+                            toast.type === "info" && "bg-blue-500",
                         )}
                         style={{
                             animation: `shrink ${toast.duration}ms linear forwards`,
@@ -373,8 +376,10 @@ export function setToastContext(context: ToastContextValue) {
 }
 
 export const toast = {
-    success: (title: string, message?: string) => toastFn?.success(title, message),
+    success: (title: string, message?: string) =>
+        toastFn?.success(title, message),
     error: (title: string, message?: string) => toastFn?.error(title, message),
-    warning: (title: string, message?: string) => toastFn?.warning(title, message),
+    warning: (title: string, message?: string) =>
+        toastFn?.warning(title, message),
     info: (title: string, message?: string) => toastFn?.info(title, message),
 };
