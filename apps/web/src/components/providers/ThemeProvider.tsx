@@ -56,7 +56,9 @@ export function ThemeProvider({
     storageKey = "hub-theme",
 }: ThemeProviderProps) {
     const [theme, setThemeState] = useState<Theme>(defaultTheme);
-    const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("dark");
+    const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(
+        "dark",
+    );
     const [mounted, setMounted] = useState(false);
 
     // Get system preference
@@ -72,7 +74,7 @@ export function ThemeProvider({
         (t: Theme): "light" | "dark" => {
             return t === "system" ? getSystemTheme() : t;
         },
-        [getSystemTheme]
+        [getSystemTheme],
     );
 
     // Apply theme to document
@@ -82,11 +84,13 @@ export function ThemeProvider({
         root.classList.add(resolved);
 
         // Update meta theme-color
-        const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+        const metaThemeColor = document.querySelector(
+            'meta[name="theme-color"]',
+        );
         if (metaThemeColor) {
             metaThemeColor.setAttribute(
                 "content",
-                resolved === "dark" ? "#0c0a09" : "#ffffff"
+                resolved === "dark" ? "#0c0a09" : "#ffffff",
             );
         }
     }, []);
@@ -129,7 +133,7 @@ export function ThemeProvider({
             setResolvedTheme(resolved);
             applyTheme(resolved);
         },
-        [storageKey, resolveTheme, applyTheme]
+        [storageKey, resolveTheme, applyTheme],
     );
 
     // Toggle between light/dark (skips system)
@@ -172,8 +176,11 @@ interface ThemeToggleProps {
     showLabel?: boolean;
 }
 
-export function ThemeToggle({ className = "", showLabel = false }: ThemeToggleProps) {
-    const { theme, resolvedTheme, toggleTheme } = useTheme();
+export function ThemeToggle({
+    className = "",
+    showLabel = false,
+}: ThemeToggleProps) {
+    const { resolvedTheme, toggleTheme } = useTheme();
 
     const Icon = resolvedTheme === "dark" ? Moon : Sun;
     const label = resolvedTheme === "dark" ? "深色模式" : "浅色模式";
@@ -211,7 +218,9 @@ export function ThemeSelector({ className = "" }: ThemeSelectorProps) {
     ];
 
     return (
-        <div className={`flex items-center gap-1 p-1 rounded-lg bg-muted ${className}`}>
+        <div
+            className={`flex items-center gap-1 p-1 rounded-lg bg-muted ${className}`}
+        >
             {options.map(({ value, label, icon: Icon }) => (
                 <button
                     key={value}
