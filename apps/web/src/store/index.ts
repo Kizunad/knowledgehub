@@ -105,3 +105,43 @@ export {
     type File,
     type FilesFilter,
 } from "./filesStore";
+
+// Notes Store
+export {
+    useNotesStore,
+    useNotes,
+    useNotesBySource,
+    usePinnedNotes,
+    useActiveNote,
+    useSelectedNotes,
+    useNotesLoading,
+    useNotesError,
+    useNotesFilter,
+    useNotesPagination,
+    useNoteById,
+    useNotesCount,
+    type Note,
+    type NoteContentType,
+    type NotesFilter,
+} from "./notesStore";
+
+// Drafts Store
+export {
+    useDraftsStore,
+    useDrafts,
+    useLocalDrafts,
+    useAllDrafts,
+    useDraftsByTargetSource,
+    useActiveDraft,
+    useSelectedDrafts,
+    useDraftsLoading,
+    useDraftsError,
+    useDraftsFilter,
+    useDraftsPagination,
+    useDraftById,
+    useDraftsCount,
+    useHasUnsavedDrafts,
+    type Draft,
+    type DraftContentType,
+    type DraftsFilter,
+} from "./draftsStore";

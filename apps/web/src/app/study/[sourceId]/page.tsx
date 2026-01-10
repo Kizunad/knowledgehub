@@ -21,7 +21,12 @@ import {
     FolderOpen,
     RefreshCw,
     ChevronRight,
+    StickyNote,
+    Plus,
 } from "lucide-react";
+import { useNotes } from "@/hooks/useNotes";
+import { NotesList, NoteEditor } from "@/components/notes";
+import { Note } from "@/store/notesStore";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -80,11 +85,16 @@ function getFileIcon(mimeType: string | null, fileName: string) {
         mimeType?.includes("javascript") ||
         mimeType?.includes("typescript") ||
         mimeType?.includes("json") ||
-        fileName.match(/\.(js|ts|jsx|tsx|py|rb|go|rs|java|c|cpp|h|css|html|xml|yaml|yml|toml|md)$/)
+        fileName.match(
+            /\.(js|ts|jsx|tsx|py|rb|go|rs|java|c|cpp|h|css|html|xml|yaml|yml|toml|md)$/,
+        )
     ) {
         return <FileCode className="w-5 h-5 text-blue-400" />;
     }
-    if (mimeType?.startsWith("text/") || fileName.match(/\.(txt|md|markdown)$/)) {
+    if (
+        mimeType?.startsWith("text/") ||
+        fileName.match(/\.(txt|md|markdown)$/)
+    ) {
         return <FileText className="w-5 h-5 text-green-400" />;
     }
     return <File className="w-5 h-5 text-stone-400" />;
@@ -107,7 +117,9 @@ function FileContextMenu({
 }) {
     const handleDownload = () => {
         if (file.content) {
-            const blob = new Blob([file.content], { type: file.mime_type || "text/plain" });
+            const blob = new Blob([file.content], {
+                type: file.mime_type || "text/plain",
+            });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -168,7 +180,11 @@ function FileCard({
                     <MoreVertical className="w-4 h-4 text-stone-400" />
                 </button>
                 {showMenu && (
-                    <FileContextMenu file={file} onDelete={onDelete} onClose={() => setShowMenu(false)} />
+                    <FileContextMenu
+                        file={file}
+                        onDelete={onDelete}
+                        onClose={() => setShowMenu(false)}
+                    />
                 )}
             </div>
 
@@ -179,18 +195,25 @@ function FileCard({
                 </div>
 
                 {/* Name */}
-                <h3 className="font-medium text-stone-100 truncate mb-1" title={file.name}>
+                <h3
+                    className="font-medium text-stone-100 truncate mb-1"
+                    title={file.name}
+                >
                     {file.name}
                 </h3>
 
                 {/* Meta */}
                 <div className="flex items-center gap-2 text-xs text-stone-500">
-                    <span className="px-1.5 py-0.5 bg-stone-800 rounded">{getFileExtension(file.name)}</span>
+                    <span className="px-1.5 py-0.5 bg-stone-800 rounded">
+                        {getFileExtension(file.name)}
+                    </span>
                     <span>{formatFileSize(file.size)}</span>
                 </div>
 
                 {/* Updated time */}
-                <p className="text-xs text-stone-600 mt-2">{formatRelativeTime(file.updated_at)}</p>
+                <p className="text-xs text-stone-600 mt-2">
+                    {formatRelativeTime(file.updated_at)}
+                </p>
             </Link>
         </div>
     );
@@ -223,11 +246,18 @@ function FileRow({
                     <MoreVertical className="w-4 h-4 text-stone-400" />
                 </button>
                 {showMenu && (
-                    <FileContextMenu file={file} onDelete={onDelete} onClose={() => setShowMenu(false)} />
+                    <FileContextMenu
+                        file={file}
+                        onDelete={onDelete}
+                        onClose={() => setShowMenu(false)}
+                    />
                 )}
             </div>
 
-            <Link href={`/study/${sourceId}/${file.id}`} className="flex items-center gap-4 flex-1 min-w-0">
+            <Link
+                href={`/study/${sourceId}/${file.id}`}
+                className="flex items-center gap-4 flex-1 min-w-0"
+            >
                 {/* Icon */}
                 <div className="w-10 h-10 rounded-lg bg-stone-800 flex items-center justify-center shrink-0">
                     {getFileIcon(file.mime_type, file.name)}
@@ -235,8 +265,12 @@ function FileRow({
 
                 {/* Name & Path */}
                 <div className="flex-1 min-w-0">
-                    <h3 className="font-medium text-stone-100 truncate">{file.name}</h3>
-                    <p className="text-xs text-stone-500 truncate">{file.path}</p>
+                    <h3 className="font-medium text-stone-100 truncate">
+                        {file.name}
+                    </h3>
+                    <p className="text-xs text-stone-500 truncate">
+                        {file.path}
+                    </p>
                 </div>
 
                 {/* Extension */}
@@ -261,6 +295,9 @@ function FileRow({
     );
 }
 
+// Tab type
+type TabType = "files" | "notes";
+
 // Main Page Component
 export default function StudySourcePage() {
     const params = useParams();
@@ -273,7 +310,24 @@ export default function StudySourcePage() {
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-    const [sortBy, setSortBy] = useState<"name" | "updated" | "size">("updated");
+    const [sortBy, setSortBy] = useState<"name" | "updated" | "size">(
+        "updated",
+    );
+    const [activeTab, setActiveTab] = useState<TabType>("files");
+    const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+    const [isCreatingNote, setIsCreatingNote] = useState(false);
+
+    // Notes hook
+    const {
+        notes,
+        isLoading: notesLoading,
+        isSaving: notesSaving,
+        createNote,
+        updateNote,
+        deleteNote,
+        togglePinned,
+        refresh: refreshNotes,
+    } = useNotes({ autoFetch: true, sourceId });
 
     // Fetch source info
     const fetchSource = useCallback(async () => {
@@ -295,7 +349,9 @@ export default function StudySourcePage() {
     const fetchFiles = useCallback(async () => {
         setIsLoading(true);
         try {
-            const response = await fetch(`/api/files?source_id=${sourceId}&limit=200`);
+            const response = await fetch(
+                `/api/files?source_id=${sourceId}&limit=200`,
+            );
             const result = await response.json();
             if (result.success && result.data) {
                 setFiles(result.data.files || []);
@@ -313,7 +369,9 @@ export default function StudySourcePage() {
     // Delete file
     const handleDeleteFile = async (fileId: string) => {
         try {
-            const response = await fetch(`/api/files/${fileId}`, { method: "DELETE" });
+            const response = await fetch(`/api/files/${fileId}`, {
+                method: "DELETE",
+            });
             const result = await response.json();
             if (result.success) {
                 setFiles((prev) => prev.filter((f) => f.id !== fileId));
@@ -335,7 +393,10 @@ export default function StudySourcePage() {
     const filteredFiles = files.filter((file) => {
         if (!searchQuery) return true;
         const query = searchQuery.toLowerCase();
-        return file.name.toLowerCase().includes(query) || file.path.toLowerCase().includes(query);
+        return (
+            file.name.toLowerCase().includes(query) ||
+            file.path.toLowerCase().includes(query)
+        );
     });
 
     const sortedFiles = [...filteredFiles].sort((a, b) => {
@@ -346,12 +407,71 @@ export default function StudySourcePage() {
                 return (b.size || 0) - (a.size || 0);
             case "updated":
             default:
-                return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+                return (
+                    new Date(b.updated_at).getTime() -
+                    new Date(a.updated_at).getTime()
+                );
         }
     });
 
     // Stats
     const totalSize = files.reduce((sum, f) => sum + (f.size || 0), 0);
+
+    // Note handlers
+    const handleCreateNote = useCallback(() => {
+        setSelectedNote(null);
+        setIsCreatingNote(true);
+    }, []);
+
+    const handleSelectNote = useCallback((note: Note) => {
+        setSelectedNote(note);
+        setIsCreatingNote(false);
+    }, []);
+
+    const handleSaveNote = useCallback(
+        async (data: {
+            title?: string;
+            content: string;
+            content_type: "markdown" | "plaintext" | "code";
+            language?: string;
+            tags?: string[];
+        }) => {
+            if (isCreatingNote) {
+                const result = await createNote({
+                    source_id: sourceId,
+                    ...data,
+                });
+                if (result.success && result.data) {
+                    setSelectedNote(result.data);
+                    setIsCreatingNote(false);
+                }
+                return result;
+            } else if (selectedNote) {
+                return updateNote(selectedNote.id, data);
+            }
+            return { success: false, error: "No note selected" };
+        },
+        [isCreatingNote, selectedNote, sourceId, createNote, updateNote],
+    );
+
+    const handleDeleteNote = useCallback(async () => {
+        if (!selectedNote) return { success: false, error: "No note selected" };
+        const result = await deleteNote(selectedNote.id);
+        if (result.success) {
+            setSelectedNote(null);
+        }
+        return result;
+    }, [selectedNote, deleteNote]);
+
+    const handleTogglePinned = useCallback(async () => {
+        if (!selectedNote) return { success: false, error: "No note selected" };
+        return togglePinned(selectedNote.id);
+    }, [selectedNote, togglePinned]);
+
+    const handleCloseEditor = useCallback(() => {
+        setSelectedNote(null);
+        setIsCreatingNote(false);
+    }, []);
 
     if (error && !source) {
         return (
@@ -388,7 +508,9 @@ export default function StudySourcePage() {
                                     {source?.name || "Loading..."}
                                 </h1>
                                 {source?.description && (
-                                    <p className="text-sm text-stone-500">{source.description}</p>
+                                    <p className="text-sm text-stone-500">
+                                        {source.description}
+                                    </p>
                                 )}
                             </div>
                         </div>
@@ -397,148 +519,293 @@ export default function StudySourcePage() {
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => {
-                                    fetchFiles();
+                                    if (activeTab === "files") {
+                                        fetchFiles();
+                                    } else {
+                                        refreshNotes();
+                                    }
                                 }}
                                 className="p-2 hover:bg-stone-800 rounded-lg transition-colors"
                                 title="Refresh"
                             >
-                                <RefreshCw className={cn("w-5 h-5 text-stone-400", isLoading && "animate-spin")} />
+                                <RefreshCw
+                                    className={cn(
+                                        "w-5 h-5 text-stone-400",
+                                        (isLoading || notesLoading) &&
+                                            "animate-spin",
+                                    )}
+                                />
                             </button>
-                            <Link
-                                href="/study"
-                                className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm text-stone-300 hover:bg-stone-800 rounded-lg transition-colors"
-                            >
-                                <Upload className="w-4 h-4" />
-                                Upload
-                            </Link>
+                            {activeTab === "notes" && (
+                                <button
+                                    onClick={handleCreateNote}
+                                    className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    New Note
+                                </button>
+                            )}
+                            {activeTab === "files" && (
+                                <Link
+                                    href="/study"
+                                    className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm text-stone-300 hover:bg-stone-800 rounded-lg transition-colors"
+                                >
+                                    <Upload className="w-4 h-4" />
+                                    Upload
+                                </Link>
+                            )}
                         </div>
                     </div>
                 </div>
             </header>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                {/* Stats Bar */}
-                <div className="flex flex-wrap items-center gap-4 mb-6 text-sm text-stone-400">
-                    <div className="flex items-center gap-2">
-                        <FolderOpen className="w-4 h-4" />
-                        <span>{files.length} files</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <HardDrive className="w-4 h-4" />
-                        <span>{formatFileSize(totalSize)}</span>
-                    </div>
-                    {source?.synced_at && (
-                        <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            <span>Synced {formatRelativeTime(source.synced_at)}</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Toolbar */}
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                    {/* Search */}
-                    <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
-                        <input
-                            type="text"
-                            placeholder="Search files..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-stone-900 border border-stone-800 rounded-lg text-stone-100 placeholder-stone-500 focus:outline-none focus:border-stone-700"
-                        />
-                    </div>
-
-                    {/* Sort */}
-                    <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as "name" | "updated" | "size")}
-                        className="px-3 py-2 bg-stone-900 border border-stone-800 rounded-lg text-stone-300 focus:outline-none focus:border-stone-700"
-                    >
-                        <option value="updated">Recently Updated</option>
-                        <option value="name">Name</option>
-                        <option value="size">Size</option>
-                    </select>
-
-                    {/* View Toggle */}
-                    <div className="flex bg-stone-900 border border-stone-800 rounded-lg p-1">
-                        <button
-                            onClick={() => setViewMode("grid")}
-                            className={cn(
-                                "p-2 rounded-md transition-colors",
-                                viewMode === "grid" ? "bg-stone-800 text-stone-100" : "text-stone-500 hover:text-stone-300"
-                            )}
-                        >
-                            <Grid3X3 className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode("list")}
-                            className={cn(
-                                "p-2 rounded-md transition-colors",
-                                viewMode === "list" ? "bg-stone-800 text-stone-100" : "text-stone-500 hover:text-stone-300"
-                            )}
-                        >
-                            <List className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Content */}
-                {isLoading ? (
-                    <div className="flex items-center justify-center py-20">
-                        <RefreshCw className="w-8 h-8 text-stone-600 animate-spin" />
-                    </div>
-                ) : sortedFiles.length === 0 ? (
-                    <div className="text-center py-20">
-                        <FolderOpen className="w-16 h-16 text-stone-700 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-stone-400 mb-2">
-                            {searchQuery ? "No files match your search" : "No files yet"}
-                        </h3>
-                        <p className="text-stone-500 mb-6">
-                            {searchQuery
-                                ? "Try a different search term"
-                                : "Upload files to this study space to get started"}
-                        </p>
-                        {!searchQuery && (
-                            <Link
-                                href="/study"
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-100 rounded-lg transition-colors"
-                            >
-                                <Upload className="w-4 h-4" />
-                                Upload Files
-                            </Link>
+                {/* Tabs */}
+                <div className="flex items-center gap-1 mb-6 border-b border-stone-800">
+                    <button
+                        onClick={() => setActiveTab("files")}
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                            activeTab === "files"
+                                ? "border-blue-500 text-blue-400"
+                                : "border-transparent text-stone-400 hover:text-stone-300",
                         )}
-                    </div>
-                ) : viewMode === "grid" ? (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {sortedFiles.map((file) => (
-                            <FileCard
-                                key={file.id}
-                                file={file}
-                                sourceId={sourceId}
-                                onDelete={handleDeleteFile}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
-                        {/* List Header */}
-                        <div className="hidden sm:flex items-center gap-4 px-4 py-2 bg-stone-800/50 text-xs text-stone-500 uppercase tracking-wider">
-                            <div className="w-10" />
-                            <div className="flex-1">Name</div>
-                            <div className="w-16 text-center">Type</div>
-                            <div className="hidden md:block w-20 text-right">Size</div>
-                            <div className="hidden lg:block w-24 text-right">Updated</div>
-                            <div className="w-12" />
+                    >
+                        <FolderOpen className="w-4 h-4" />
+                        Files
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800">
+                            {files.length}
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("notes")}
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                            activeTab === "notes"
+                                ? "border-blue-500 text-blue-400"
+                                : "border-transparent text-stone-400 hover:text-stone-300",
+                        )}
+                    >
+                        <StickyNote className="w-4 h-4" />
+                        Notes
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-stone-800">
+                            {notes.length}
+                        </span>
+                    </button>
+                </div>
+
+                {activeTab === "files" ? (
+                    <>
+                        {/* Stats Bar */}
+                        <div className="flex flex-wrap items-center gap-4 mb-6 text-sm text-stone-400">
+                            <div className="flex items-center gap-2">
+                                <FolderOpen className="w-4 h-4" />
+                                <span>{files.length} files</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <HardDrive className="w-4 h-4" />
+                                <span>{formatFileSize(totalSize)}</span>
+                            </div>
+                            {source?.synced_at && (
+                                <div className="flex items-center gap-2">
+                                    <Clock className="w-4 h-4" />
+                                    <span>
+                                        Synced{" "}
+                                        {formatRelativeTime(source.synced_at)}
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                        {sortedFiles.map((file) => (
-                            <FileRow
-                                key={file.id}
-                                file={file}
-                                sourceId={sourceId}
-                                onDelete={handleDeleteFile}
+
+                        {/* Toolbar */}
+                        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                            {/* Search */}
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Search files..."
+                                    value={searchQuery}
+                                    onChange={(e) =>
+                                        setSearchQuery(e.target.value)
+                                    }
+                                    className="w-full pl-10 pr-4 py-2 bg-stone-900 border border-stone-800 rounded-lg text-stone-100 placeholder-stone-500 focus:outline-none focus:border-stone-700"
+                                />
+                            </div>
+
+                            {/* Sort */}
+                            <select
+                                value={sortBy}
+                                onChange={(e) =>
+                                    setSortBy(
+                                        e.target.value as
+                                            | "name"
+                                            | "updated"
+                                            | "size",
+                                    )
+                                }
+                                className="px-3 py-2 bg-stone-900 border border-stone-800 rounded-lg text-stone-300 focus:outline-none focus:border-stone-700"
+                            >
+                                <option value="updated">
+                                    Recently Updated
+                                </option>
+                                <option value="name">Name</option>
+                                <option value="size">Size</option>
+                            </select>
+
+                            {/* View Toggle */}
+                            <div className="flex bg-stone-900 border border-stone-800 rounded-lg p-1">
+                                <button
+                                    onClick={() => setViewMode("grid")}
+                                    className={cn(
+                                        "p-2 rounded-md transition-colors",
+                                        viewMode === "grid"
+                                            ? "bg-stone-800 text-stone-100"
+                                            : "text-stone-500 hover:text-stone-300",
+                                    )}
+                                >
+                                    <Grid3X3 className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => setViewMode("list")}
+                                    className={cn(
+                                        "p-2 rounded-md transition-colors",
+                                        viewMode === "list"
+                                            ? "bg-stone-800 text-stone-100"
+                                            : "text-stone-500 hover:text-stone-300",
+                                    )}
+                                >
+                                    <List className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-20">
+                                <RefreshCw className="w-8 h-8 text-stone-600 animate-spin" />
+                            </div>
+                        ) : sortedFiles.length === 0 ? (
+                            <div className="text-center py-20">
+                                <FolderOpen className="w-16 h-16 text-stone-700 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-stone-400 mb-2">
+                                    {searchQuery
+                                        ? "No files match your search"
+                                        : "No files yet"}
+                                </h3>
+                                <p className="text-stone-500 mb-6">
+                                    {searchQuery
+                                        ? "Try a different search term"
+                                        : "Upload files to this study space to get started"}
+                                </p>
+                                {!searchQuery && (
+                                    <Link
+                                        href="/study"
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-stone-800 hover:bg-stone-700 text-stone-100 rounded-lg transition-colors"
+                                    >
+                                        <Upload className="w-4 h-4" />
+                                        Upload Files
+                                    </Link>
+                                )}
+                            </div>
+                        ) : viewMode === "grid" ? (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                                {sortedFiles.map((file) => (
+                                    <FileCard
+                                        key={file.id}
+                                        file={file}
+                                        sourceId={sourceId}
+                                        onDelete={handleDeleteFile}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+                                {/* List Header */}
+                                <div className="hidden sm:flex items-center gap-4 px-4 py-2 bg-stone-800/50 text-xs text-stone-500 uppercase tracking-wider">
+                                    <div className="w-10" />
+                                    <div className="flex-1">Name</div>
+                                    <div className="w-16 text-center">Type</div>
+                                    <div className="hidden md:block w-20 text-right">
+                                        Size
+                                    </div>
+                                    <div className="hidden lg:block w-24 text-right">
+                                        Updated
+                                    </div>
+                                    <div className="w-12" />
+                                </div>
+                                {sortedFiles.map((file) => (
+                                    <FileRow
+                                        key={file.id}
+                                        file={file}
+                                        sourceId={sourceId}
+                                        onDelete={handleDeleteFile}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </>
+                ) : (
+                    /* Notes Tab Content */
+                    <div className="flex gap-6 h-[calc(100vh-280px)]">
+                        {/* Notes List */}
+                        <div className="w-80 flex-shrink-0 bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+                            <NotesList
+                                notes={notes}
+                                activeNoteId={
+                                    selectedNote?.id ||
+                                    (isCreatingNote ? "new" : null)
+                                }
+                                onNoteSelect={handleSelectNote}
+                                onNoteCreate={handleCreateNote}
+                                onNoteDelete={deleteNote}
+                                onTogglePinned={togglePinned}
+                                isLoading={notesLoading}
+                                className="h-full"
                             />
-                        ))}
+                        </div>
+
+                        {/* Note Editor */}
+                        <div className="flex-1 bg-stone-900 border border-stone-800 rounded-xl overflow-hidden">
+                            {selectedNote || isCreatingNote ? (
+                                <NoteEditor
+                                    note={selectedNote}
+                                    isNew={isCreatingNote}
+                                    onSave={handleSaveNote}
+                                    onDelete={
+                                        selectedNote
+                                            ? handleDeleteNote
+                                            : undefined
+                                    }
+                                    onTogglePinned={
+                                        selectedNote
+                                            ? handleTogglePinned
+                                            : undefined
+                                    }
+                                    onClose={handleCloseEditor}
+                                    isSaving={notesSaving}
+                                    className="h-full"
+                                />
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                                    <StickyNote className="w-16 h-16 text-stone-700 mb-4" />
+                                    <h3 className="text-lg font-medium text-stone-400 mb-2">
+                                        No note selected
+                                    </h3>
+                                    <p className="text-stone-500 mb-6">
+                                        Select a note from the list or create a
+                                        new one
+                                    </p>
+                                    <button
+                                        onClick={handleCreateNote}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Create Note
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </main>

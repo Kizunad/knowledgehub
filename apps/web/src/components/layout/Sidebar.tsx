@@ -12,6 +12,7 @@ import {
     Search,
     Menu,
     X,
+    FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -68,6 +69,12 @@ export function Sidebar({ onSearchClick }: SidebarProps) {
             color: "text-chat",
         },
         { name: "Ideas", href: "/ideas", icon: Lightbulb, color: "text-ideas" },
+        {
+            name: "Drafts",
+            href: "/drafts",
+            icon: FileText,
+            color: "text-amber-500",
+        },
     ];
 
     const SidebarContent = () => (

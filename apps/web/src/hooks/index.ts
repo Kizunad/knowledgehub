@@ -21,6 +21,22 @@ export {
     type UpdateSourceInput,
 } from "./useSources";
 
+// Notes Hooks
+export {
+    useNotes,
+    useNotesBySource,
+    usePinnedNotes,
+    useNotesCount,
+} from "./useNotes";
+
+// Drafts Hooks
+export {
+    useDrafts,
+    useDraftsByTargetSource,
+    useHasUnsavedDrafts,
+    useDraftsCount,
+} from "./useDrafts";
+
 // Search Hooks
 export {
     useSearch,
