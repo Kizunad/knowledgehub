@@ -119,6 +119,7 @@ const mockSources: DirectorySource[] = [
         id: "1",
         name: "hub",
         mode: "local_sync",
+        source_type: "code",
         path: "~/Code/webProj/hub",
         branch: "main",
         description: "Personal knowledge hub",
@@ -130,6 +131,7 @@ const mockSources: DirectorySource[] = [
         id: "2",
         name: "dotfiles",
         mode: "github",
+        source_type: "code",
         path: "username/dotfiles",
         branch: "main",
         description: "System configuration",
@@ -143,6 +145,7 @@ const mockSources: DirectorySource[] = [
         id: "3",
         name: "blog",
         mode: "github",
+        source_type: "code",
         path: "username/blog",
         branch: "main",
         description: "Personal blog",
@@ -475,7 +478,11 @@ export default function HomePage() {
         sources: apiSources,
         isLoading: sourcesLoading,
         isConfigured: sourcesConfigured,
-    } = useSources({ autoFetch: true });
+    } = useSources({
+        autoFetch: true,
+        initialFilter: { source_type: "code" },
+        useLocalState: true,
+    });
 
     // Use API data if configured, otherwise use mock data
     const ideas = ideasConfigured ? apiIdeas : localIdeas;

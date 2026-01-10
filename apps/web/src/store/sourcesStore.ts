@@ -3,11 +3,13 @@ import { devtools } from "zustand/middleware";
 
 // Types
 export type DirectorySourceMode = "github" | "link" | "local_sync";
+export type DirectorySourceType = "code" | "study";
 
 export interface DirectorySource {
     id: string;
     name: string;
     mode: DirectorySourceMode;
+    source_type: DirectorySourceType;
     path: string;
     branch: string | null;
     description: string | null;
@@ -18,6 +20,7 @@ export interface DirectorySource {
 
 export interface SourcesFilter {
     mode?: DirectorySourceMode;
+    source_type?: DirectorySourceType;
     search?: string;
 }
 
@@ -319,16 +322,14 @@ export const useSourcesStore = create<SourcesState>()(
                 ),
 
             // Loading States
-            setLoading: (isLoading) =>
-                set({ isLoading }, false, "setLoading"),
+            setLoading: (isLoading) => set({ isLoading }, false, "setLoading"),
             setCreating: (isCreating) =>
                 set({ isCreating }, false, "setCreating"),
             setUpdating: (isUpdating) =>
                 set({ isUpdating }, false, "setUpdating"),
             setDeleting: (isDeleting) =>
                 set({ isDeleting }, false, "setDeleting"),
-            setSyncing: (isSyncing) =>
-                set({ isSyncing }, false, "setSyncing"),
+            setSyncing: (isSyncing) => set({ isSyncing }, false, "setSyncing"),
             setError: (error) => set({ error }, false, "setError"),
 
             // Reset

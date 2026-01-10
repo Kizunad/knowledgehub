@@ -32,6 +32,7 @@ const mockPinnedProjects: DirectorySource[] = [
         id: "1",
         name: "hub",
         mode: "local_sync",
+        source_type: "code",
         path: "~/Code/webProj/hub",
         branch: "main",
         description: "Personal knowledge hub monorepo",
@@ -43,6 +44,7 @@ const mockPinnedProjects: DirectorySource[] = [
         id: "2",
         name: "dotfiles",
         mode: "github",
+        source_type: "code",
         path: "username/dotfiles",
         branch: "main",
         description: "System configuration and scripts",
@@ -61,6 +63,7 @@ const mockAllProjects: DirectorySource[] = [
         id: "3",
         name: "blog-v3",
         mode: "local_sync",
+        source_type: "code",
         path: "~/Code/personal/blog",
         branch: "main",
         description: "Personal blog built with Next.js",
@@ -76,6 +79,7 @@ const mockAllProjects: DirectorySource[] = [
         id: "4",
         name: "rust-cli-utils",
         mode: "local_sync",
+        source_type: "code",
         path: "~/Code/playground/rust-cli",
         branch: "dev",
         description: "CLI utilities written in Rust",
@@ -93,6 +97,7 @@ const mockAllProjects: DirectorySource[] = [
         id: "5",
         name: "shadcn-ui",
         mode: "github",
+        source_type: "code",
         path: "shadcn-ui/ui",
         branch: "main",
         description: "Beautifully designed components",
@@ -110,6 +115,7 @@ const mockAllProjects: DirectorySource[] = [
         id: "6",
         name: "obsidian-plugin",
         mode: "link",
+        source_type: "code",
         path: "https://github.com/denolehov/obsidian-git",
         branch: null,
         description: "Obsidian Git integration plugin",
@@ -542,7 +548,11 @@ export default function CodePage() {
         deleteSource,
         syncSource,
         refresh,
-    } = useSources({ autoFetch: true });
+    } = useSources({
+        autoFetch: true,
+        initialFilter: { source_type: "code" },
+        useLocalState: true,
+    });
 
     // Use API sources if configured, otherwise use local mock data
     const sources = isConfigured ? apiSources : localSources;
@@ -586,13 +596,14 @@ export default function CodePage() {
             description?: string;
         }) => {
             if (isConfigured) {
-                return await createSource(input);
+                return await createSource({ ...input, source_type: "code" });
             } else {
                 // Local mock mode
                 const newSource: DirectorySource = {
                     id: Date.now().toString(),
                     name: input.name,
                     mode: input.mode,
+                    source_type: "code",
                     path: input.path,
                     branch: input.branch || null,
                     description: input.description || null,

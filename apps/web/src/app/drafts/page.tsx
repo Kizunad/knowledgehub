@@ -26,8 +26,12 @@ export default function DraftsPage() {
         refresh,
     } = useDrafts({ autoFetch: true });
 
-    // Fetch sources for save-to-space functionality
-    const { sources } = useSources({ autoFetch: true });
+    // Fetch sources for save-to-space functionality (only study spaces)
+    const { sources } = useSources({
+        autoFetch: true,
+        initialFilter: { source_type: "study" },
+        useLocalState: true,
+    });
 
     // Handle creating a new draft
     const handleCreateDraft = useCallback(
@@ -38,7 +42,7 @@ export default function DraftsPage() {
             });
             setActiveDraft(newDraft.id);
         },
-        [createLocalDraft, setActiveDraft]
+        [createLocalDraft, setActiveDraft],
     );
 
     // Handle selecting a draft
@@ -46,7 +50,7 @@ export default function DraftsPage() {
         (draft: { id: string }) => {
             setActiveDraft(draft.id);
         },
-        [setActiveDraft]
+        [setActiveDraft],
     );
 
     // Handle updating a draft
@@ -54,7 +58,7 @@ export default function DraftsPage() {
         (id: string, updates: Record<string, unknown>) => {
             updateDraft(id, updates);
         },
-        [updateDraft]
+        [updateDraft],
     );
 
     // Handle auto-save
@@ -62,7 +66,7 @@ export default function DraftsPage() {
         (id: string, content: string) => {
             autoSaveDraft(id, content, 1000);
         },
-        [autoSaveDraft]
+        [autoSaveDraft],
     );
 
     // Handle delete
@@ -70,7 +74,7 @@ export default function DraftsPage() {
         async (id: string) => {
             return deleteDraft(id);
         },
-        [deleteDraft]
+        [deleteDraft],
     );
 
     // Handle save as note
@@ -78,7 +82,7 @@ export default function DraftsPage() {
         async (draftId: string, sourceId: string) => {
             return saveDraftAsNote(draftId, sourceId);
         },
-        [saveDraftAsNote]
+        [saveDraftAsNote],
     );
 
     return (
@@ -109,7 +113,7 @@ export default function DraftsPage() {
                             <RefreshCw
                                 className={cn(
                                     "h-4 w-4",
-                                    isLoading && "animate-spin"
+                                    isLoading && "animate-spin",
                                 )}
                             />
                         </button>
@@ -150,7 +154,8 @@ export default function DraftsPage() {
                 {/* Info Footer */}
                 <div className="px-6 py-3 border-t border-border bg-muted/30">
                     <p className="text-xs text-muted-foreground text-center">
-                        Drafts are auto-saved locally. Save to a Space to persist as notes.
+                        Drafts are auto-saved locally. Save to a Space to
+                        persist as notes.
                     </p>
                 </div>
             </div>

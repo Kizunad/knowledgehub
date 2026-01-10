@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     useSourcesStore,
     type DirectorySource,
     type DirectorySourceMode,
+    type DirectorySourceType,
     type SourcesFilter,
 } from "@/store";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
@@ -31,6 +32,7 @@ export interface CreateSourceInput {
     path: string;
     branch?: string;
     description?: string;
+    source_type?: DirectorySourceType;
 }
 
 // Update source input
@@ -53,48 +55,301 @@ interface SyncResult {
 interface UseSourcesOptions {
     autoFetch?: boolean;
     initialFilter?: SourcesFilter;
+    /** Use local state instead of global store - useful when multiple components need different filtered data */
+    useLocalState?: boolean;
 }
 
 /**
  * Custom hook for managing directory sources with API integration
  */
 export function useSources(options: UseSourcesOptions = {}) {
-    const { autoFetch = true, initialFilter } = options;
+    const { autoFetch = true, initialFilter, useLocalState = false } = options;
 
-    // Store state
-    const sources = useSourcesStore((state) => state.sources);
-    const filter = useSourcesStore((state) => state.filter);
-    const syncStatuses = useSourcesStore((state) => state.syncStatuses);
-    const isLoading = useSourcesStore((state) => state.isLoading);
-    const isCreating = useSourcesStore((state) => state.isCreating);
-    const isUpdating = useSourcesStore((state) => state.isUpdating);
-    const isDeleting = useSourcesStore((state) => state.isDeleting);
-    const isSyncing = useSourcesStore((state) => state.isSyncing);
-    const error = useSourcesStore((state) => state.error);
-    const total = useSourcesStore((state) => state.total);
-    const limit = useSourcesStore((state) => state.limit);
-    const offset = useSourcesStore((state) => state.offset);
-    const hasMore = useSourcesStore((state) => state.hasMore);
+    // Local state for isolated data (when useLocalState is true)
+    const [localSources, setLocalSources] = useState<DirectorySource[]>([]);
+    const [localFilter, setLocalFilter] = useState<SourcesFilter>(
+        initialFilter || {},
+    );
+    const [localIsLoading, setLocalIsLoading] = useState(false);
+    const [localIsCreating, setLocalIsCreating] = useState(false);
+    const [localIsUpdating, setLocalIsUpdating] = useState(false);
+    const [localIsDeleting, setLocalIsDeleting] = useState(false);
+    const [localIsSyncing, setLocalIsSyncing] = useState(false);
+    const [localError, setLocalError] = useState<string | null>(null);
+    const [localTotal, setLocalTotal] = useState(0);
+    const [localLimit] = useState(50);
+    const [localOffset, setLocalOffset] = useState(0);
+    const [localHasMore, setLocalHasMore] = useState(false);
+    const [localSyncStatuses, setLocalSyncStatuses] = useState<
+        Map<
+            string,
+            {
+                source_id: string;
+                status: string;
+                message?: string;
+                last_synced?: string;
+            }
+        >
+    >(new Map());
+
+    // Store state (used when useLocalState is false)
+    const storeSources = useSourcesStore((state) => state.sources);
+    const storeFilter = useSourcesStore((state) => state.filter);
+    const storeSyncStatuses = useSourcesStore((state) => state.syncStatuses);
+    const storeIsLoading = useSourcesStore((state) => state.isLoading);
+    const storeIsCreating = useSourcesStore((state) => state.isCreating);
+    const storeIsUpdating = useSourcesStore((state) => state.isUpdating);
+    const storeIsDeleting = useSourcesStore((state) => state.isDeleting);
+    const storeIsSyncing = useSourcesStore((state) => state.isSyncing);
+    const storeError = useSourcesStore((state) => state.error);
+    const storeTotal = useSourcesStore((state) => state.total);
+    const storeLimit = useSourcesStore((state) => state.limit);
+    const storeOffset = useSourcesStore((state) => state.offset);
+    const storeHasMore = useSourcesStore((state) => state.hasMore);
 
     // Store actions
-    const setSources = useSourcesStore((state) => state.setSources);
-    const addSource = useSourcesStore((state) => state.addSource);
+    const setStoreSources = useSourcesStore((state) => state.setSources);
+    const addStoreSource = useSourcesStore((state) => state.addSource);
     const updateSourceInStore = useSourcesStore((state) => state.updateSource);
-    const removeSource = useSourcesStore((state) => state.removeSource);
-    const removeSources = useSourcesStore((state) => state.removeSources);
-    const setLoading = useSourcesStore((state) => state.setLoading);
-    const setCreating = useSourcesStore((state) => state.setCreating);
-    const setUpdating = useSourcesStore((state) => state.setUpdating);
-    const setDeleting = useSourcesStore((state) => state.setDeleting);
-    const setSyncing = useSourcesStore((state) => state.setSyncing);
-    const setError = useSourcesStore((state) => state.setError);
-    const setPagination = useSourcesStore((state) => state.setPagination);
-    const setFilter = useSourcesStore((state) => state.setFilter);
-    const setSyncStatus = useSourcesStore((state) => state.setSyncStatus);
-    const clearSyncStatus = useSourcesStore((state) => state.clearSyncStatus);
+    const removeStoreSource = useSourcesStore((state) => state.removeSource);
+    const removeStoreSources = useSourcesStore((state) => state.removeSources);
+    const setStoreLoading = useSourcesStore((state) => state.setLoading);
+    const setStoreCreating = useSourcesStore((state) => state.setCreating);
+    const setStoreUpdating = useSourcesStore((state) => state.setUpdating);
+    const setStoreDeleting = useSourcesStore((state) => state.setDeleting);
+    const setStoreSyncing = useSourcesStore((state) => state.setSyncing);
+    const setStoreError = useSourcesStore((state) => state.setError);
+    const setStorePagination = useSourcesStore((state) => state.setPagination);
+    const setStoreFilter = useSourcesStore((state) => state.setFilter);
+    const setStoreSyncStatus = useSourcesStore((state) => state.setSyncStatus);
+    const clearStoreSyncStatus = useSourcesStore(
+        (state) => state.clearSyncStatus,
+    );
+
+    // Choose between local and store state
+    const sources = useLocalState ? localSources : storeSources;
+    const filter = useLocalState ? localFilter : storeFilter;
+    const syncStatuses = useLocalState ? localSyncStatuses : storeSyncStatuses;
+    const isLoading = useLocalState ? localIsLoading : storeIsLoading;
+    const isCreating = useLocalState ? localIsCreating : storeIsCreating;
+    const isUpdating = useLocalState ? localIsUpdating : storeIsUpdating;
+    const isDeleting = useLocalState ? localIsDeleting : storeIsDeleting;
+    const isSyncing = useLocalState ? localIsSyncing : storeIsSyncing;
+    const error = useLocalState ? localError : storeError;
+    const total = useLocalState ? localTotal : storeTotal;
+    const limit = useLocalState ? localLimit : storeLimit;
+    const offset = useLocalState ? localOffset : storeOffset;
+    const hasMore = useLocalState ? localHasMore : storeHasMore;
+
+    // Create unified setters
+    const setSources = useCallback(
+        (sources: DirectorySource[]) => {
+            if (useLocalState) {
+                setLocalSources(sources);
+                setLocalHasMore(sources.length >= localLimit);
+            } else {
+                setStoreSources(sources);
+            }
+        },
+        [useLocalState, localLimit, setStoreSources],
+    );
+
+    const addSource = useCallback(
+        (source: DirectorySource) => {
+            if (useLocalState) {
+                setLocalSources((prev) => [source, ...prev]);
+                setLocalTotal((prev) => prev + 1);
+            } else {
+                addStoreSource(source);
+            }
+        },
+        [useLocalState, addStoreSource],
+    );
+
+    const removeSource = useCallback(
+        (id: string) => {
+            if (useLocalState) {
+                setLocalSources((prev) => prev.filter((s) => s.id !== id));
+                setLocalTotal((prev) => Math.max(0, prev - 1));
+                setLocalSyncStatuses((prev) => {
+                    const next = new Map(prev);
+                    next.delete(id);
+                    return next;
+                });
+            } else {
+                removeStoreSource(id);
+            }
+        },
+        [useLocalState, removeStoreSource],
+    );
+
+    const removeSources = useCallback(
+        (ids: string[]) => {
+            if (useLocalState) {
+                setLocalSources((prev) =>
+                    prev.filter((s) => !ids.includes(s.id)),
+                );
+                setLocalTotal((prev) => Math.max(0, prev - ids.length));
+                setLocalSyncStatuses((prev) => {
+                    const next = new Map(prev);
+                    ids.forEach((id) => next.delete(id));
+                    return next;
+                });
+            } else {
+                removeStoreSources(ids);
+            }
+        },
+        [useLocalState, removeStoreSources],
+    );
+
+    const setLoading = useCallback(
+        (loading: boolean) => {
+            if (useLocalState) {
+                setLocalIsLoading(loading);
+            } else {
+                setStoreLoading(loading);
+            }
+        },
+        [useLocalState, setStoreLoading],
+    );
+
+    const setCreating = useCallback(
+        (creating: boolean) => {
+            if (useLocalState) {
+                setLocalIsCreating(creating);
+            } else {
+                setStoreCreating(creating);
+            }
+        },
+        [useLocalState, setStoreCreating],
+    );
+
+    const setUpdating = useCallback(
+        (updating: boolean) => {
+            if (useLocalState) {
+                setLocalIsUpdating(updating);
+            } else {
+                setStoreUpdating(updating);
+            }
+        },
+        [useLocalState, setStoreUpdating],
+    );
+
+    const setDeleting = useCallback(
+        (deleting: boolean) => {
+            if (useLocalState) {
+                setLocalIsDeleting(deleting);
+            } else {
+                setStoreDeleting(deleting);
+            }
+        },
+        [useLocalState, setStoreDeleting],
+    );
+
+    const setSyncing = useCallback(
+        (syncing: boolean) => {
+            if (useLocalState) {
+                setLocalIsSyncing(syncing);
+            } else {
+                setStoreSyncing(syncing);
+            }
+        },
+        [useLocalState, setStoreSyncing],
+    );
+
+    const setError = useCallback(
+        (error: string | null) => {
+            if (useLocalState) {
+                setLocalError(error);
+            } else {
+                setStoreError(error);
+            }
+        },
+        [useLocalState, setStoreError],
+    );
+
+    const setPagination = useCallback(
+        (pagination: { total?: number; limit?: number; offset?: number }) => {
+            if (useLocalState) {
+                if (pagination.total !== undefined)
+                    setLocalTotal(pagination.total);
+                if (pagination.offset !== undefined)
+                    setLocalOffset(pagination.offset);
+                setLocalHasMore(
+                    (pagination.offset ?? localOffset) + localLimit <
+                        (pagination.total ?? localTotal),
+                );
+            } else {
+                setStorePagination(pagination);
+            }
+        },
+        [
+            useLocalState,
+            localOffset,
+            localLimit,
+            localTotal,
+            setStorePagination,
+        ],
+    );
+
+    const setFilter = useCallback(
+        (newFilter: SourcesFilter) => {
+            if (useLocalState) {
+                setLocalFilter((prev) => ({ ...prev, ...newFilter }));
+                setLocalOffset(0);
+            } else {
+                setStoreFilter(newFilter);
+            }
+        },
+        [useLocalState, setStoreFilter],
+    );
+
+    const setSyncStatus = useCallback(
+        (
+            sourceId: string,
+            status: {
+                source_id: string;
+                status: string;
+                message?: string;
+                last_synced?: string;
+            },
+        ) => {
+            if (useLocalState) {
+                setLocalSyncStatuses((prev) => {
+                    const next = new Map(prev);
+                    next.set(sourceId, status);
+                    return next;
+                });
+            } else {
+                setStoreSyncStatus(
+                    sourceId,
+                    status as Parameters<typeof setStoreSyncStatus>[1],
+                );
+            }
+        },
+        [useLocalState, setStoreSyncStatus],
+    );
+
+    const clearSyncStatus = useCallback(
+        (sourceId: string) => {
+            if (useLocalState) {
+                setLocalSyncStatuses((prev) => {
+                    const next = new Map(prev);
+                    next.delete(sourceId);
+                    return next;
+                });
+            } else {
+                clearStoreSyncStatus(sourceId);
+            }
+        },
+        [useLocalState, clearStoreSyncStatus],
+    );
 
     // Track if initial fetch has been done
     const hasFetched = useRef(false);
+
+    // Store the initialFilter in a ref to use consistently
+    const initialFilterRef = useRef(initialFilter);
 
     /**
      * Fetch sources from API
@@ -110,18 +365,30 @@ export function useSources(options: UseSourcesOptions = {}) {
             setError(null);
 
             try {
-                const currentFilter = customFilter || filter;
+                // When using local state, always use the initialFilter as base
+                const baseFilter = useLocalState
+                    ? initialFilterRef.current || {}
+                    : filter;
+                const currentFilter = customFilter
+                    ? { ...baseFilter, ...customFilter }
+                    : baseFilter;
                 const currentOffset = customOffset ?? offset;
 
                 // Build query params
                 const params = new URLSearchParams();
                 if (currentFilter.mode) params.set("mode", currentFilter.mode);
-                if (currentFilter.search) params.set("search", currentFilter.search);
+                if (currentFilter.source_type)
+                    params.set("source_type", currentFilter.source_type);
+                if (currentFilter.search)
+                    params.set("search", currentFilter.search);
                 params.set("limit", String(limit));
                 params.set("offset", String(currentOffset));
 
-                const response = await fetch(`/api/sources?${params.toString()}`);
-                const result: ApiResponse<SourcesListResponse> = await response.json();
+                const response = await fetch(
+                    `/api/sources?${params.toString()}`,
+                );
+                const result: ApiResponse<SourcesListResponse> =
+                    await response.json();
 
                 if (!response.ok || !result.success) {
                     throw new Error(result.error || "获取目录源失败");
@@ -138,14 +405,24 @@ export function useSources(options: UseSourcesOptions = {}) {
 
                 return { success: true, data: result.data };
             } catch (err) {
-                const message = err instanceof Error ? err.message : "获取目录源失败";
+                const message =
+                    err instanceof Error ? err.message : "获取目录源失败";
                 setError(message);
                 return { success: false, error: message };
             } finally {
                 setLoading(false);
             }
         },
-        [filter, offset, limit, setSources, setPagination, setLoading, setError]
+        [
+            useLocalState,
+            filter,
+            offset,
+            limit,
+            setSources,
+            setPagination,
+            setLoading,
+            setError,
+        ],
     );
 
     /**
@@ -168,7 +445,8 @@ export function useSources(options: UseSourcesOptions = {}) {
                     body: JSON.stringify(input),
                 });
 
-                const result: ApiResponse<DirectorySource> = await response.json();
+                const result: ApiResponse<DirectorySource> =
+                    await response.json();
 
                 if (!response.ok || !result.success) {
                     throw new Error(result.error || "创建目录源失败");
@@ -180,14 +458,15 @@ export function useSources(options: UseSourcesOptions = {}) {
 
                 return { success: true, data: result.data };
             } catch (err) {
-                const message = err instanceof Error ? err.message : "创建目录源失败";
+                const message =
+                    err instanceof Error ? err.message : "创建目录源失败";
                 setError(message);
                 return { success: false, error: message };
             } finally {
                 setCreating(false);
             }
         },
-        [addSource, setCreating, setError]
+        [addSource, setCreating, setError],
     );
 
     /**
@@ -210,7 +489,8 @@ export function useSources(options: UseSourcesOptions = {}) {
                     body: JSON.stringify(updates),
                 });
 
-                const result: ApiResponse<DirectorySource> = await response.json();
+                const result: ApiResponse<DirectorySource> =
+                    await response.json();
 
                 if (!response.ok || !result.success) {
                     throw new Error(result.error || "更新目录源失败");
@@ -222,14 +502,15 @@ export function useSources(options: UseSourcesOptions = {}) {
 
                 return { success: true, data: result.data };
             } catch (err) {
-                const message = err instanceof Error ? err.message : "更新目录源失败";
+                const message =
+                    err instanceof Error ? err.message : "更新目录源失败";
                 setError(message);
                 return { success: false, error: message };
             } finally {
                 setUpdating(false);
             }
         },
-        [updateSourceInStore, setUpdating, setError]
+        [updateSourceInStore, setUpdating, setError],
     );
 
     /**
@@ -256,7 +537,8 @@ export function useSources(options: UseSourcesOptions = {}) {
                     method: "DELETE",
                 });
 
-                const result: ApiResponse<{ deleted: boolean }> = await response.json();
+                const result: ApiResponse<{ deleted: boolean }> =
+                    await response.json();
 
                 if (!response.ok || !result.success) {
                     // Rollback on failure
@@ -271,14 +553,22 @@ export function useSources(options: UseSourcesOptions = {}) {
 
                 return { success: true };
             } catch (err) {
-                const message = err instanceof Error ? err.message : "删除目录源失败";
+                const message =
+                    err instanceof Error ? err.message : "删除目录源失败";
                 setError(message);
                 return { success: false, error: message };
             } finally {
                 setDeleting(false);
             }
         },
-        [sources, addSource, removeSource, clearSyncStatus, setDeleting, setError]
+        [
+            sources,
+            addSource,
+            removeSource,
+            clearSyncStatus,
+            setDeleting,
+            setError,
+        ],
     );
 
     /**
@@ -305,11 +595,15 @@ export function useSources(options: UseSourcesOptions = {}) {
             removeSources(ids);
 
             try {
-                const response = await fetch(`/api/sources?ids=${ids.join(",")}`, {
-                    method: "DELETE",
-                });
+                const response = await fetch(
+                    `/api/sources?ids=${ids.join(",")}`,
+                    {
+                        method: "DELETE",
+                    },
+                );
 
-                const result: ApiResponse<{ deleted: number }> = await response.json();
+                const result: ApiResponse<{ deleted: number }> =
+                    await response.json();
 
                 if (!response.ok || !result.success) {
                     // Rollback on failure
@@ -322,14 +616,22 @@ export function useSources(options: UseSourcesOptions = {}) {
 
                 return { success: true, data: result.data };
             } catch (err) {
-                const message = err instanceof Error ? err.message : "批量删除目录源失败";
+                const message =
+                    err instanceof Error ? err.message : "批量删除目录源失败";
                 setError(message);
                 return { success: false, error: message };
             } finally {
                 setDeleting(false);
             }
         },
-        [sources, addSource, removeSources, clearSyncStatus, setDeleting, setError]
+        [
+            sources,
+            addSource,
+            removeSources,
+            clearSyncStatus,
+            setDeleting,
+            setError,
+        ],
     );
 
     /**
@@ -391,7 +693,7 @@ export function useSources(options: UseSourcesOptions = {}) {
                 setSyncing(false);
             }
         },
-        [setSyncStatus, updateSourceInStore, setSyncing, setError]
+        [setSyncStatus, updateSourceInStore, setSyncing, setError],
     );
 
     /**
@@ -460,7 +762,7 @@ export function useSources(options: UseSourcesOptions = {}) {
             setFilter(newFilter);
             return fetchSources(newFilter, 0);
         },
-        [setFilter, fetchSources]
+        [setFilter, fetchSources],
     );
 
     // Auto-fetch on mount
@@ -513,7 +815,7 @@ export function useSources(options: UseSourcesOptions = {}) {
  */
 export function useSourcesByMode(mode: DirectorySourceMode) {
     const sources = useSourcesStore((state) =>
-        state.sources.filter((source) => source.mode === mode)
+        state.sources.filter((source) => source.mode === mode),
     );
     return sources;
 }
@@ -524,8 +826,9 @@ export function useSourcesByMode(mode: DirectorySourceMode) {
 export function useSourcesNeedingSync() {
     return useSourcesStore((state) =>
         state.sources.filter(
-            (source) => source.mode === "local_sync" && source.synced_at === null
-        )
+            (source) =>
+                source.mode === "local_sync" && source.synced_at === null,
+        ),
     );
 }
 

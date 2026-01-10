@@ -10,11 +10,13 @@ import {
 
 // Types
 type DirectorySourceMode = "github" | "link" | "local_sync";
+type DirectorySourceType = "code" | "study";
 
 interface DirectorySource {
     id: string;
     name: string;
     mode: DirectorySourceMode;
+    source_type: DirectorySourceType;
     path: string;
     branch: string | null;
     description: string | null;
@@ -30,6 +32,7 @@ interface CreateSourceBody {
     path: string;
     branch?: string;
     description?: string;
+    source_type?: DirectorySourceType;
 }
 
 interface UpdateSourceBody {
@@ -65,6 +68,7 @@ export async function GET(request: NextRequest) {
         // Parse query parameters
         const { searchParams } = new URL(request.url);
         const mode = searchParams.get("mode"); // github, link, local_sync
+        const source_type = searchParams.get("source_type"); // code, study
         const limit = parseInt(searchParams.get("limit") || "50");
         const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -80,6 +84,9 @@ export async function GET(request: NextRequest) {
         // Apply filters
         if (mode) {
             query = query.eq("mode", mode);
+        }
+        if (source_type) {
+            query = query.eq("source_type", source_type);
         }
 
         const { data, error, count } = await query;
@@ -172,6 +179,14 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Validate source_type if provided
+        if (body.source_type && !["code", "study"].includes(body.source_type)) {
+            return NextResponse.json(
+                errorResponse("source_type must be 'code' or 'study'"),
+                { status: 400 },
+            );
+        }
+
         const { data, error } = await supabase
             .from("directory_sources")
             .insert({
@@ -180,6 +195,7 @@ export async function POST(request: NextRequest) {
                 path: body.path.trim(),
                 branch: body.branch?.trim() || null,
                 description: body.description?.trim() || null,
+                source_type: body.source_type || "code", // Default to 'code'
                 user_id: userId, // Explicitly set user_id
             })
             .select()

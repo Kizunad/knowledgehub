@@ -429,10 +429,14 @@ export default function StudyPage() {
         createSource,
         deleteSource,
         refresh,
-    } = useSources({ autoFetch: true });
+    } = useSources({
+        autoFetch: true,
+        initialFilter: { source_type: "study" },
+        useLocalState: true,
+    });
 
-    // Filter sources for study spaces (local_sync mode)
-    const studySpaces = sources.filter((s) => s.mode === "local_sync");
+    // Study spaces are already filtered by source_type: 'study' from the API
+    const studySpaces = sources;
 
     // Handle add space
     const handleAddSpace = useCallback(
@@ -442,6 +446,7 @@ export default function StudyPage() {
                 mode: "local_sync",
                 path: data.path,
                 description: data.description,
+                source_type: "study",
             });
             if (result.success) {
                 setShowAddModal(false);

@@ -43,6 +43,7 @@ export {
     useSourcesNeedingSync,
     type DirectorySource,
     type DirectorySourceMode,
+    type DirectorySourceType,
     type SourcesFilter,
 } from "./sourcesStore";
 
